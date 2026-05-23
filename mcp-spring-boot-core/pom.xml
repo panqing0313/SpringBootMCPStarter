@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.github.trae</groupId>
+        <groupId>com.github.star</groupId>
         <artifactId>mcp-spring-boot-starter-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
