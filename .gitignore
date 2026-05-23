@@ -2,3 +2,5 @@
 /mcp-sample-server/target/
 /mcp-spring-boot-autoconfigure/target/
 /mcp-spring-boot-core/target/
+/.idea/
+/.gitignore
