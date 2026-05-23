@@ -1,0 +1,17 @@
+
+server:
+  port: 8080
+
+mcp:
+  enabled: true
+  base-path: /mcp
+  expose-api: true
+  streaming-enabled: true
+
+spring:
+  application:
+    name: mcp-sample-server
+
+logging:
+  level:
+    com.github.trae.mcp: DEBUG
