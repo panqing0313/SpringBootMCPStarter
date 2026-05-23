@@ -67,6 +67,11 @@
       <option name="url" value="https://repos.iec.io/repository/maven-caf/" />
     </remote-repository>
     <remote-repository>
+      <option name="id" value="spring-milestones" />
+      <option name="name" value="Spring Milestones" />
+      <option name="url" value="https://repo.spring.io/milestone" />
+    </remote-repository>
+    <remote-repository>
       <option name="id" value="rep-ma-snapshots" />
       <option name="name" value="rep-ma-snapshots" />
       <option name="url" value="https://repos.iec.io/repository/maven-ma-snapshots/" />
