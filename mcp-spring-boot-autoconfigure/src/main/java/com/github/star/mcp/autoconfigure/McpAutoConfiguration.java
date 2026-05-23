@@ -49,8 +49,8 @@ public class McpAutoConfiguration {
 
     @Bean
     @ConditionalOnProperty(prefix = "mcp", name = "expose-api", havingValue = "true", matchIfMissing = true)
-    public McpController mcpController(ToolExecutor toolExecutor, McpProperties properties, ObjectMapper objectMapper) {
-        logger.info("=== Creating McpController Bean ===");
-        return new McpController(toolExecutor, properties, objectMapper);
+    public McpController mcpController(ToolExecutor toolExecutor, ObjectMapper objectMapper) {
+        logger.info("=== CreatingMcpController Bean ===");
+        return new McpController(toolExecutor, objectMapper);
     }
 }

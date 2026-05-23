@@ -2,14 +2,12 @@
 package com.github.star.mcp.autoconfigure.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.star.mcp.autoconfigure.McpProperties;
 import com.github.star.mcp.core.executor.ToolExecutor;
 import com.github.star.mcp.core.model.ToolCallRequest;
 import com.github.star.mcp.core.model.ToolCallResponse;
 import com.github.star.mcp.core.model.ToolDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -29,31 +27,27 @@ public class McpController {
     private static final Logger logger = LoggerFactory.getLogger(McpController.class);
 
     private final ToolExecutor toolExecutor;
-    private final McpProperties properties;
     private final ObjectMapper objectMapper;
 
     private final ConcurrentHashMap<String, SseEmitter> emitters = new ConcurrentHashMap<>();
     private final AtomicLong emitterIdCounter = new AtomicLong(0);
 
-    @Autowired
-    public McpController(ToolExecutor toolExecutor, McpProperties properties, ObjectMapper objectMapper) {
+    public McpController(ToolExecutor toolExecutor, ObjectMapper objectMapper) {
         this.toolExecutor = toolExecutor;
-        this.properties = properties;
         this.objectMapper = objectMapper;
+        logger.info("MCP Controller initialized with {} tools", toolExecutor.listTools().size());
     }
 
     @GetMapping("/tools")
     public ResponseEntity<List<ToolDefinition>> listTools() {
         logger.debug("Listing all MCP tools");
-        List<ToolDefinition> tools = toolExecutor.listTools();
-        return ResponseEntity.ok(tools);
+        return ResponseEntity.ok(toolExecutor.listTools());
     }
 
     @PostMapping("/call")
     public ResponseEntity<ToolCallResponse> callTool(@RequestBody ToolCallRequest request) {
         logger.debug("Calling tool: {}", request.getToolName());
-        ToolCallResponse response = toolExecutor.execute(request);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(toolExecutor.execute(request));
     }
 
     @GetMapping("/health")
@@ -65,62 +59,12 @@ public class McpController {
         return ResponseEntity.ok(health);
     }
 
-    @GetMapping("/schema")
-    public ResponseEntity<List<Map<String, Object>>> getSchema() {
-        List<ToolDefinition> tools = toolExecutor.listTools();
-        List<Map<String, Object>> schemas = tools.stream()
-            .map(this::convertToSchema)
-            .toList();
-        return ResponseEntity.ok(schemas);
-    }
-
-    private Map<String, Object> convertToSchema(ToolDefinition tool) {
-        Map<String, Object> schema = new HashMap<>();
-        schema.put("name", tool.getName());
-        schema.put("description", tool.getDescription());
-        schema.put("streaming", tool.isStreaming());
-        
-        Map<String, Object> parameters = new HashMap<>();
-        Map<String, Object> properties = new HashMap<>();
-        List<String> required = new java.util.ArrayList<>();
-        
-        tool.getParameters().forEach(param -> {
-            Map<String, Object> paramSchema = new HashMap<>();
-            paramSchema.put("type", convertType(param.getType()));
-            paramSchema.put("description", param.getDescription());
-            if (!param.getDefaultValue().isEmpty()) {
-                paramSchema.put("default", param.getDefaultValue());
-            }
-            properties.put(param.getName(), paramSchema);
-            if (param.isRequired()) {
-                required.add(param.getName());
-            }
-        });
-        
-        parameters.put("type", "object");
-        parameters.put("properties", properties);
-        parameters.put("required", required);
-        
-        schema.put("parameters", parameters);
-        return schema;
-    }
-
-    private String convertType(String javaType) {
-        return switch (javaType.toLowerCase()) {
-            case "int", "integer" -> "integer";
-            case "long" -> "integer";
-            case "double", "float" -> "number";
-            case "boolean" -> "boolean";
-            default -> "string";
-        };
-    }
-
     @GetMapping(value = "/sse", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter sseConnection() {
         String emitterId = "sse-" + emitterIdCounter.incrementAndGet();
-        logger.info("Creating SSE connection: {}", emitterId);
+        logger.info("New SSE connection request: {}", emitterId);
         
-        SseEmitter emitter = new SseEmitter(0L);
+        SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
         emitters.put(emitterId, emitter);
         
         emitter.onCompletion(() -> {
@@ -129,7 +73,7 @@ public class McpController {
         });
         
         emitter.onTimeout(() -> {
-            logger.info("SSE connection timeout: {}", emitterId);
+            logger.warn("SSE connection timeout: {}", emitterId);
             emitters.remove(emitterId);
         });
         
@@ -139,36 +83,21 @@ public class McpController {
         });
         
         try {
-            Map<String, Object> initEvent = new HashMap<>();
-            initEvent.put("jsonrpc", "2.0");
-            initEvent.put("method", "initialized");
-            initEvent.put("result", new HashMap<String, Object>() {{
-                put("protocolVersion", "2024-11-05");
-                put("serverInfo", new HashMap<String, String>() {{
-                    put("name", "mcp-sample-server");
-                    put("version", "1.0.0-SNAPSHOT");
-                }});
-                put("capabilities", new HashMap<String, Object>() {{
-                    put("tools", new HashMap<String, Boolean>() {{
-                        put("listChanged", true);
-                    }});
-                }});
-            }});
-            
             emitter.send(SseEmitter.event()
                 .name("endpoint")
                 .data("/mcp/message"));
-            
-            logger.info("SSE connection established: {}", emitterId);
+            logger.info("SSE endpoint event sent to: {}", emitterId);
         } catch (IOException e) {
-            logger.error("Failed to send initialization event", e);
+            logger.error("Failed to send SSE endpoint event", e);
+            emitters.remove(emitterId);
+            return null;
         }
         
         return emitter;
     }
 
-    @PostMapping(value = "/message")
-    public ResponseEntity<Map<String, Object>> receiveMessage(@RequestBody Map<String, Object> message) {
+    @PostMapping(value = "/message", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> handleMessage(@RequestBody Map<String, Object> message) {
         String method = (String) message.get("method");
         Object id = message.get("id");
         
@@ -176,76 +105,89 @@ public class McpController {
         
         Map<String, Object> response = new HashMap<>();
         response.put("jsonrpc", "2.0");
-        
         if (id != null) {
             response.put("id", id);
         }
         
         if (method == null) {
             if (message.containsKey("result")) {
-                logger.debug("Received result notification");
                 return ResponseEntity.ok(message);
             }
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body(createError(-32600, "Invalid Request", null));
         }
         
         switch (method) {
             case "initialize":
-                Map<String, Object> initResult = new HashMap<>();
-                initResult.put("protocolVersion", "2024-11-05");
-                initResult.put("serverInfo", new HashMap<String, String>() {{
-                    put("name", "mcp-sample-server");
-                    put("version", "1.0.0-SNAPSHOT");
-                }});
-                initResult.put("capabilities", new HashMap<String, Object>() {{
-                    put("tools", new HashMap<String, Boolean>() {{
-                        put("listChanged", true);
-                    }});
-                }});
-                response.put("result", initResult);
+                response.put("result", createInitResponse());
                 break;
                 
-            case "tools/list":
-                List<ToolDefinition> tools = toolExecutor.listTools();
-                List<Map<String, Object>> toolList = tools.stream()
-                    .map(this::convertToolDefinition)
-                    .toList();
+            case "notifications/initialized":
+                logger.info("Client initialized");
+                return ResponseEntity.ok().build();
                 
-                Map<String, Object> toolsResult = new HashMap<>();
-                toolsResult.put("tools", toolList);
-                response.put("result", toolsResult);
+            case "tools/list":
+                response.put("result", createToolsListResponse());
                 break;
                 
             case "tools/call":
-                Map<String, Object> params = (Map<String, Object>) message.get("params");
-                String toolName = (String) params.get("name");
-                Map<String, Object> arguments = (Map<String, Object>) params.get("arguments");
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> params = (Map<String, Object>) message.get("params");
+                    response.put("result", handleToolCall(params));
+                } catch (Exception e) {
+                    logger.error("Tool call failed", e);
+                    response.put("error", createError(-32603, e.getMessage(), null));
+                }
+                break;
                 
-                ToolCallRequest request = new ToolCallRequest();
-                request.setToolName(toolName);
-                request.setArguments(arguments);
-                
-                ToolCallResponse toolResponse = toolExecutor.execute(request);
-                
-                Map<String, Object> textContent = new HashMap<>();
-                textContent.put("type", "text");
-                textContent.put("text", toolResponse.getResult() != null ? 
-                    toolResponse.getResult().toString() : "");
-                
-                Map<String, Object> callResult = new HashMap<>();
-                callResult.put("content", new Object[] { textContent });
-                response.put("result", callResult);
+            case "ping":
+                response.put("result", new HashMap<>());
                 break;
                 
             default:
-                response.put("error", new HashMap<String, Object>() {{
-                    put("code", -32601);
-                    put("message", "Method not found: " + method);
-                }});
+                response.put("error", createError(-32601, "Method not found: " + method, null));
         }
         
         broadcastToAll(response);
         return ResponseEntity.ok(response);
+    }
+
+    private Map<String, Object> createError(int code, String message, Object data) {
+        Map<String, Object> error = new HashMap<>();
+        error.put("code", code);
+        error.put("message", message);
+        if (data != null) {
+            error.put("data", data);
+        }
+        return error;
+    }
+
+    private Map<String, Object> createInitResponse() {
+        Map<String, Object> serverInfo = new HashMap<>();
+        serverInfo.put("name", "mcp-sample-server");
+        serverInfo.put("version", "1.0.0-SNAPSHOT");
+        
+        Map<String, Object> capabilities = new HashMap<>();
+        capabilities.put("tools", new HashMap<String, Boolean>() {{
+            put("listChanged", true);
+        }});
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("protocolVersion", "2024-11-05");
+        result.put("serverInfo", serverInfo);
+        result.put("capabilities", capabilities);
+        return result;
+    }
+
+    private Map<String, Object> createToolsListResponse() {
+        List<ToolDefinition> tools = toolExecutor.listTools();
+        List<Map<String, Object>> toolList = tools.stream()
+            .map(this::convertToolDefinition)
+            .toList();
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("tools", toolList);
+        return result;
     }
 
     private Map<String, Object> convertToolDefinition(ToolDefinition tool) {
@@ -270,10 +212,45 @@ public class McpController {
         });
         
         inputSchema.put("properties", properties);
-        inputSchema.put("required", required);
-        definition.put("inputSchema", inputSchema);
+        if (!required.isEmpty()) {
+            inputSchema.put("required", required);
+        }
         
+        definition.put("inputSchema", inputSchema);
         return definition;
+    }
+
+    private Map<String, Object> handleToolCall(Map<String, Object> params) {
+        String toolName = (String) params.get("name");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> arguments = (Map<String, Object>) params.getOrDefault("arguments", new HashMap<>());
+        
+        logger.info("Executing tool: {} with args: {}", toolName, arguments);
+        
+        ToolCallRequest request = new ToolCallRequest();
+        request.setToolName(toolName);
+        request.setArguments(arguments);
+        
+        ToolCallResponse toolResponse = toolExecutor.execute(request);
+        
+        Map<String, Object> textContent = new HashMap<>();
+        textContent.put("type", "text");
+        textContent.put("text", toolResponse.getResult() != null ? 
+            toolResponse.getResult().toString() : "");
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("content", new Object[] { textContent });
+        return result;
+    }
+
+    private String convertType(String javaType) {
+        if (javaType == null) return "string";
+        return switch (javaType.toLowerCase()) {
+            case "int", "integer", "long" -> "integer";
+            case "double", "float" -> "number";
+            case "boolean" -> "boolean";
+            default -> "string";
+        };
     }
 
     private void broadcastToAll(Map<String, Object> message) {

@@ -12,6 +12,10 @@ spring:
   application:
     name: mcp-sample-server
 
+spring.ai.mcp.server:
+  stdio: true
+  enabled: true
+
 logging:
   level:
-    com.github.trae.mcp: DEBUG
+    com.github.star.mcp: DEBUG
