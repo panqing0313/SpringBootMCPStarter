@@ -23,7 +23,7 @@
 
 ```xml
 <dependency>
-    <groupId>com.github.trae</groupId>
+    <groupId>com.github.star</groupId>
     <artifactId>mcp-spring-boot-starter</artifactId>
     <version>1.0.0-SNAPSHOT</version>
 </dependency>
@@ -223,8 +223,8 @@ Apache 2.0 License - 详见 [LICENSE](LICENSE)
 
 **trae**
 
-- GitHub: [@trae](https://github.com/trae)
-- Email: trae@github.com
+- GitHub: [@star](https://github.com/trae)
+- Email: star@github.com
 
 ---
 
