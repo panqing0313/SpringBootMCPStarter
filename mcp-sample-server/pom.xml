@@ -51,6 +51,7 @@
                 </executions>
                 <configuration>
                     <mainClass>com.github.star.mcp.sample.SampleApplication</mainClass>
+                    <jvmArguments>--enable-native-access=ALL-UNNAMED</jvmArguments>
                 </configuration>
             </plugin>
         </plugins>

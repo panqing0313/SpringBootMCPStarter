@@ -1,6 +1,7 @@
 
 package com.github.star.mcp.autoconfigure;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.star.mcp.autoconfigure.controller.McpController;
 import com.github.star.mcp.autoconfigure.executor.DefaultToolExecutor;
 import com.github.star.mcp.autoconfigure.registry.DefaultToolRegistry;
@@ -48,8 +49,8 @@ public class McpAutoConfiguration {
 
     @Bean
     @ConditionalOnProperty(prefix = "mcp", name = "expose-api", havingValue = "true", matchIfMissing = true)
-    public McpController mcpController(ToolExecutor toolExecutor, McpProperties properties) {
+    public McpController mcpController(ToolExecutor toolExecutor, McpProperties properties, ObjectMapper objectMapper) {
         logger.info("=== Creating McpController Bean ===");
-        return new McpController(toolExecutor, properties);
+        return new McpController(toolExecutor, properties, objectMapper);
     }
 }
