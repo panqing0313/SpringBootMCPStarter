@@ -1,21 +1,17 @@
-
-server:
-  port: 9231
-
 mcp:
   enabled: true
-  base-path: /mcp
-  expose-api: true
-  streaming-enabled: true
 
 spring:
   application:
     name: mcp-sample-server
-
-spring.ai.mcp.server:
-  stdio: true
-  enabled: true
+  main:
+    web-application-type: none
+    banner-mode: off
 
 logging:
+  pattern:
+    console: "%msg%n"
+  file:
+    name: mcp-server.log
   level:
     com.github.star.mcp: DEBUG

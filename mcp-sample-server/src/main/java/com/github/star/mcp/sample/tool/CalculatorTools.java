@@ -1,38 +1,39 @@
 
 package com.github.star.mcp.sample.tool;
 
-import com.github.star.mcp.core.annotation.Tool;
-import com.github.star.mcp.core.annotation.ToolParam;
+import com.github.star.mcp.autoconfigure.annotation.McpTool;
+import com.github.star.mcp.autoconfigure.annotation.McpToolParam;
 import org.springframework.stereotype.Component;
 
 @Component
+@McpTool
 public class CalculatorTools {
 
-    @Tool(name = "add", description = "加法运算")
+    @McpTool(name = "add1", description = "加法运算")
     public int add(
-            @ToolParam(value = "a", description = "第一个数") int a,
-            @ToolParam(value = "b", description = "第二个数") int b) {
+            @McpToolParam(name = "a", description = "第一个数", type = "integer") int a,
+            @McpToolParam(name = "b", description = "第二个数", type = "integer") int b) {
         return a + b;
     }
 
-    @Tool(name = "subtract", description = "减法运算")
+    @McpTool(name = "subtract", description = "减法运算")
     public int subtract(
-            @ToolParam(value = "a", description = "被减数") int a,
-            @ToolParam(value = "b", description = "减数") int b) {
+            @McpToolParam(name = "a", description = "被减数", type = "integer") int a,
+            @McpToolParam(name = "b", description = "减数", type = "integer") int b) {
         return a - b;
     }
 
-    @Tool(name = "multiply", description = "乘法运算")
+    @McpTool(name = "multiply", description = "乘法运算")
     public int multiply(
-            @ToolParam(value = "a", description = "第一个因数") int a,
-            @ToolParam(value = "b", description = "第二个因数") int b) {
+            @McpToolParam(name = "a", description = "第一个因数", type = "integer") int a,
+            @McpToolParam(name = "b", description = "第二个因数", type = "integer") int b) {
         return a * b;
     }
 
-    @Tool(name = "divide", description = "除法运算")
+    @McpTool(name = "divide", description = "除法运算")
     public double divide(
-            @ToolParam(value = "numerator", description = "被除数") int numerator,
-            @ToolParam(value = "denominator", description = "除数", required = true) int denominator) {
+            @McpToolParam(name = "numerator", description = "被除数", type = "integer") int numerator,
+            @McpToolParam(name = "denominator", description = "除数", type = "integer") int denominator) {
         if (denominator == 0) {
             throw new IllegalArgumentException("除数不能为零");
         }
