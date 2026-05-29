@@ -8,12 +8,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanPostProcessor;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationContextAware;
 import org.springframework.core.annotation.AnnotationUtils;
-import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,18 +21,11 @@ import java.util.Map;
 import com.github.star.mcp.autoconfigure.annotation.McpTool;
 import com.github.star.mcp.autoconfigure.annotation.McpToolParam;
 
-@Component
-public class McpToolRegistrar implements BeanPostProcessor, ApplicationContextAware {
+public class McpToolRegistrar implements BeanPostProcessor {
 
     private static final Logger logger = LoggerFactory.getLogger(McpToolRegistrar.class);
 
     private final List<McpServerFeatures.SyncToolSpecification> toolSpecifications = new ArrayList<>();
-    private ApplicationContext applicationContext;
-
-    @Override
-    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
-        this.applicationContext = applicationContext;
-    }
 
     @Override
     public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
@@ -43,50 +34,61 @@ public class McpToolRegistrar implements BeanPostProcessor, ApplicationContextAw
         
         if (classAnnotation != null) {
             registerClassLevelTools(bean, targetClass);
-        }
-        
-        for (Method method : targetClass.getDeclaredMethods()) {
-            McpTool methodAnnotation = AnnotationUtils.findAnnotation(method, McpTool.class);
-            if (methodAnnotation != null) {
-                try {
-                    registerMethodLevelTool(bean, method, methodAnnotation);
-                } catch (Exception e) {
-                    logger.error("Failed to register tool method: {}.{}", targetClass.getSimpleName(), method.getName(), e);
-                }
-            }
+        } else {
+            registerMethodLevelTools(bean, targetClass);
         }
         
         return bean;
     }
 
     private void registerClassLevelTools(Object bean, Class<?> targetClass) {
-        for (Method method : targetClass.getDeclaredMethods()) {
-            if (method.getParameterCount() == 0 && method.getReturnType() != void.class) {
-                try {
-                    String toolName = method.getName();
-                    String description = "Tool: " + method.getName();
-                    
-                    McpSchema.JsonSchema inputSchema = buildSchemaFromMethod(method);
-                    McpServerFeatures.SyncToolSpecification spec = createToolSpecification(
-                        toolName, description, inputSchema, bean, method);
-                    toolSpecifications.add(spec);
-                    logger.info("Registered class-level tool: {}", toolName);
-                } catch (Exception e) {
-                    logger.warn("Failed to register method as tool: {}.{}", targetClass.getSimpleName(), method.getName(), e);
-                }
+        for (Method method : targetClass.getMethods()) {
+            if (!isToolCandidate(method)) {
+                continue;
+            }
+
+            McpTool methodAnnotation = AnnotationUtils.findAnnotation(method, McpTool.class);
+            try {
+                registerTool(bean, method, methodAnnotation, "class-level");
+            } catch (Exception e) {
+                logger.warn("Failed to register method as tool: {}.{}", targetClass.getSimpleName(), method.getName(), e);
             }
         }
     }
 
-    private void registerMethodLevelTool(Object bean, Method method, McpTool annotation) throws Exception {
-        String toolName = annotation.name().isEmpty() ? method.getName() : annotation.name();
-        String description = annotation.description().isEmpty() ? "Tool: " + toolName : annotation.description();
+    private void registerMethodLevelTools(Object bean, Class<?> targetClass) {
+        for (Method method : targetClass.getDeclaredMethods()) {
+            McpTool methodAnnotation = AnnotationUtils.findAnnotation(method, McpTool.class);
+            if (methodAnnotation == null) {
+                continue;
+            }
+
+            try {
+                registerTool(bean, method, methodAnnotation, "method-level");
+            } catch (Exception e) {
+                logger.error("Failed to register tool method: {}.{}", targetClass.getSimpleName(), method.getName(), e);
+            }
+        }
+    }
+
+    private boolean isToolCandidate(Method method) {
+        return Modifier.isPublic(method.getModifiers())
+            && method.getDeclaringClass() != Object.class
+            && !method.isBridge()
+            && !method.isSynthetic();
+    }
+
+    private void registerTool(Object bean, Method method, McpTool annotation, String source) throws Exception {
+        String toolName = (annotation != null && !annotation.name().isEmpty()) ? annotation.name() : method.getName();
+        String description = (annotation != null && !annotation.description().isEmpty())
+            ? annotation.description()
+            : "Tool: " + toolName;
         
         McpSchema.JsonSchema inputSchema = buildSchemaFromMethod(method);
         McpServerFeatures.SyncToolSpecification spec = createToolSpecification(
             toolName, description, inputSchema, bean, method);
         toolSpecifications.add(spec);
-        logger.info("Registered method-level tool: {}", toolName);
+        logger.info("Registered {} tool: {}", source, toolName);
     }
 
     private McpSchema.JsonSchema buildSchemaFromMethod(Method method) {

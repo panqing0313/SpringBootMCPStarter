@@ -1,4 +1,3 @@
-
 package com.github.star.mcp.autoconfigure;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,9 +14,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +38,12 @@ public class McpAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public static McpToolRegistrar mcpToolRegistrar() {
+        return new McpToolRegistrar();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public StdioServerTransportProvider mcpTransportProvider(ObjectMapper objectMapper) {
         logger.info("Creating StdioServerTransportProvider for MCP server");
         McpJsonMapper jsonMapper = new JacksonMcpJsonMapper(objectMapper);
@@ -46,6 +51,7 @@ public class McpAutoConfiguration {
     }
 
     @Bean
+    @Lazy
     @ConditionalOnMissingBean
     public McpSyncServer mcpServer(StdioServerTransportProvider transportProvider,
                                     @Autowired(required = false) List<McpServerFeatures.SyncToolSpecification> beanToolSpecifications) {
@@ -60,32 +66,29 @@ public class McpAutoConfiguration {
         }
         
         logger.info("Creating McpSyncServer with {} tools", allTools.size());
-        
-        var builder = McpServer.sync(transportProvider)
+
+        for (McpServerFeatures.SyncToolSpecification spec : allTools) {
+            logger.info("Tool to register: {}", spec.tool().name());
+        }
+
+        McpSyncServer server = McpServer.sync(transportProvider)
             .serverInfo("mcp-sample-server", "1.0.0-SNAPSHOT")
             .capabilities(McpSchema.ServerCapabilities.builder()
+                .resources(false, true)
                 .tools(true)
+                .prompts(true)
+                .completions()
+                .logging()
                 .build())
-            .tools(allTools.toArray(new McpServerFeatures.SyncToolSpecification[0]));
+            .tools(allTools.toArray(new McpServerFeatures.SyncToolSpecification[0]))
+            .build();
 
-        McpSyncServer server = builder.build();
         logger.info("MCP Server created successfully with {} tools", allTools.size());
         return server;
     }
 
     @Bean
-    public CommandLineRunner mcpKeepAliveRunner(McpSyncServer server) {
-        return args -> {
-            logger.info("MCP STDIO server started. Waiting for input...");
-            // Use System.in read to block - this doesn't interfere with reactor's STDIO transport
-            // since System.in is already being consumed by StdioServerTransportProvider
-            // We just need to keep the JVM alive
-            try {
-                // Read from a separate stream to keep main thread alive without blocking reactor
-                Thread.sleep(Long.MAX_VALUE);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        };
+    public CountDownLatch mcpShutdownLatch() {
+        return new CountDownLatch(1);
     }
 }

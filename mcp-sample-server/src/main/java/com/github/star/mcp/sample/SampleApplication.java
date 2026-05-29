@@ -1,13 +1,12 @@
-
 package com.github.star.mcp.sample;
 
-import org.springframework.boot.SpringApplication;
+import com.github.star.mcp.autoconfigure.McpServerRunner;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 public class SampleApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(SampleApplication.class, args);
+        McpServerRunner.run(SampleApplication.class, args);
     }
 }

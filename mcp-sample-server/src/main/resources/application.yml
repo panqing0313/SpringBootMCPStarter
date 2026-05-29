@@ -14,4 +14,5 @@ logging:
   file:
     name: mcp-server.log
   level:
+    io.modelcontextprotocol: DEBUG
     com.github.star.mcp: DEBUG

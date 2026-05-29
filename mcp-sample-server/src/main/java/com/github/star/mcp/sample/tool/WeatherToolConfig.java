@@ -5,6 +5,7 @@ import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -13,6 +14,7 @@ import java.util.Map;
 import java.util.HashMap;
 
 @Configuration
+@Profile("bean-tools")
 public class WeatherToolConfig {
 
     private static final Map<String, String> WEATHER_DATA = Map.of(

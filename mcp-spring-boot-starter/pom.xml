@@ -17,11 +17,6 @@
     <dependencies>
         <dependency>
             <groupId>com.github.star</groupId>
-            <artifactId>mcp-spring-boot-core</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.github.star</groupId>
             <artifactId>mcp-spring-boot-autoconfigure</artifactId>
             <version>${project.version}</version>
         </dependency>

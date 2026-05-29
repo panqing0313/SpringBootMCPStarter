@@ -5,11 +5,13 @@ import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 
 import java.util.List;
 import java.util.Map;
 
 @Configuration
+@Profile("bean-tools")
 public class CalculatorToolConfig {
 
     @Bean
